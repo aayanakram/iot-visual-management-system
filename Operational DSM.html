@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaizen Radical - IoT Station Simulation</title>
+    <style>
+        :root {
+            --erp-blue: #2c3e50;
+            --led-off: #555;
+            --led-on: #2ecc71;
+            --led-alert: #e74c3c;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+        }
+        .container {
+            display: flex;
+            width: 100%;
+            padding: 20px;
+            gap: 20px;
+        }
+        /* Hardware Station Styles */
+        .hardware-panel {
+            flex: 1;
+            background: #333;
+            color: #fff;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border: 4px solid #222;
+        }
+        .hardware-panel h2 { margin-top: 0; border-bottom: 2px solid #555; padding-bottom: 10px;}
+        .module {
+            background: #444;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid #555;
+        }
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-toggle {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider-toggle:before {
+            position: absolute;
+            content: "";
+            height: 26px; width: 26px;
+            left: 4px; bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-toggle { background-color: var(--led-on); }
+        input:checked + .slider-toggle:before { transform: translateX(26px); }
+        
+        /* Range Slider (Simulating Rotary) */
+        input[type=range] { width: 100%; cursor: pointer; }
+        
+        /* Push Button */
+        .push-btn {
+            background: var(--led-alert);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 5px #900;
+        }
+        .push-btn:active {
+            box-shadow: 0 2px #900;
+            transform: translateY(3px);
+        }
+
+        /* LED Indicator */
+        .led {
+            width: 30px; height: 30px;
+            background-color: var(--led-off);
+            border-radius: 50%;
+            box-shadow: inset 0 0 10px #000;
+            transition: background-color 0.3s;
+        }
+
+        /* ERP Dashboard Styles */
+        .erp-panel {
+            flex: 1;
+            background: #fff;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            border: 2px solid #ddd;
+        }
+        .erp-panel h2 { margin-top: 0; color: var(--erp-blue); border-bottom: 2px solid #ddd; padding-bottom: 10px;}
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th { background-color: #f8f9fa; }
+        
+        .erp-controls button {
+            background: var(--erp-blue);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        /* Console Log Window */
+        .console-log {
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 15px;
+            height: 150px;
+            overflow-y: auto;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- LEFT: Physical IoT Station Simulation -->
+    <div class="hardware-panel">
+        <h2>🛠️ Physical Station (ESP32)</h2>
+        
+        <!-- Module 1: Toggle -->
+        <div class="module">
+            <label><strong>Module 1: Task Status (Toggle)</strong></label><br><br>
+            <label class="switch">
+                <input type="checkbox" id="hwToggle" onchange="hwUpdate('toggle')">
+                <span class="slider-toggle"></span>
+            </label>
+            <span id="hwToggleLabel" style="margin-left: 15px;">To Do</span>
+        </div>
+
+        <!-- Module 2: Rotary / Slider -->
+        <div class="module">
+            <label><strong>Module 2: Process Completion (Rotary/Slider)</strong></label><br><br>
+            <input type="range" id="hwSlider" min="0" max="100" value="0" oninput="hwUpdate('slider')">
+            <p>Value: <span id="hwSliderLabel">0</span>%</p>
+        </div>
+
+        <!-- Module 3: Push Button -->
+        <div class="module" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <label><strong>Module 3: Trigger Alert (Push Button)</strong></label><br><br>
+                <button class="push-btn" onclick="hwUpdate('button')">SEND ALERT</button>
+            </div>
+            <div style="text-align: center;">
+                <label><strong>ERP Feedback LED</strong></label><br><br>
+                <div class="led" id="hwLed"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: ERP System Simulation -->
+    <div class="erp-panel">
+        <h2>☁️ Odoo ERP Dashboard (Digital Shadow)</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Data Field</th>
+                    <th>Current Value (DB State)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Work Order 101 Status</td>
+                    <td id="erpTaskStatus">To Do</td>
+                </tr>
+                <tr>
+                    <td>Production KPI (%)</td>
+                    <td id="erpCompletion">0%</td>
+                </tr>
+                <tr>
+                    <td>System Alert</td>
+                    <td id="erpAlertStatus">Clear</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="erp-controls">
+            <h3>ERP Admin Overrides (Push to Hardware)</h3>
+            <button onclick="erpPushUpdate('task_reset')">Reset Work Order to "To Do"</button>
+            <button onclick="erpPushUpdate('trigger_led_green')">Assign Task (Green LED)</button>
+            <button onclick="erpPushUpdate('trigger_led_red')">Mark Overdue (Red LED)</button>
+        </div>
+
+        <!-- Simulated MQTT / IoT Middleware Log -->
+        <h3>IoT Middleware Logs</h3>
+        <div class="console-log" id="logWindow"></div>
+    </div>
+</div>
+
+<script>
+    // System State (Single Source of Truth acting as the Cloud DB)
+    let systemState = {
+        taskStatus: false, // false = To Do, true = Done
+        completionPercent: 0,
+        alertActive: false,
+        ledColor: '#555' // default off
+    };
+
+    // Logging Function (Simulates MQTT broker traffic)
+    function logMQTT(direction, topic, payload) {
+        const logWindow = document.getElementById('logWindow');
+        const time = new Date().toLocaleTimeString();
+        const msg = `[${time}] ${direction} | Topic: ${topic} | Payload: ${JSON.stringify(payload)}<br>`;
+        logWindow.innerHTML = msg + logWindow.innerHTML;
+    }
+
+    // --- HARDWARE TO ERP LOGIC (Upstream) ---
+    function hwUpdate(module) {
+        if (module === 'toggle') {
+            const isChecked = document.getElementById('hwToggle').checked;
+            systemState.taskStatus = isChecked;
+            document.getElementById('hwToggleLabel').innerText = isChecked ? 'Done' : 'To Do';
+            logMQTT('PUBLISH (HW->ERP)', 'station1/module1/status', { status: isChecked ? 'Done' : 'To Do' });
+        } 
+        else if (module === 'slider') {
+            const val = document.getElementById('hwSlider').value;
+            systemState.completionPercent = val;
+            document.getElementById('hwSliderLabel').innerText = val;
+            logMQTT('PUBLISH (HW->ERP)', 'station1/module2/kpi', { completion: val });
+        }
+        else if (module === 'button') {
+            systemState.alertActive = true;
+            logMQTT('PUBLISH (HW->ERP)', 'station1/module3/alert', { alert: 'TRIGGERED' });
+            
+            // Auto-clear alert for demo purposes after 3 seconds
+            setTimeout(() => {
+                systemState.alertActive = false;
+                syncUI();
+            }, 3000);
+        }
+        syncUI();
+    }
+
+    // --- ERP TO HARDWARE LOGIC (Downstream) ---
+    function erpPushUpdate(action) {
+        if (action === 'task_reset') {
+            systemState.taskStatus = false;
+            logMQTT('PUSH (ERP->HW)', 'erp/workorder/101', { command: 'RESET' });
+        } 
+        else if (action === 'trigger_led_green') {
+            systemState.ledColor = '#2ecc71';
+            logMQTT('PUSH (ERP->HW)', 'station1/led_feedback', { color: 'green', state: 'ON' });
+        }
+        else if (action === 'trigger_led_red') {
+            systemState.ledColor = '#e74c3c';
+            logMQTT('PUSH (ERP->HW)', 'station1/led_feedback', { color: 'red', state: 'ON' });
+        }
+        syncUI();
+    }
+
+    // --- SYNCHRONIZATION LOGIC ---
+    function syncUI() {
+        // Sync Hardware Side to State
+        document.getElementById('hwToggle').checked = systemState.taskStatus;
+        document.getElementById('hwToggleLabel').innerText = systemState.taskStatus ? 'Done' : 'To Do';
+        document.getElementById('hwSlider').value = systemState.completionPercent;
+        document.getElementById('hwSliderLabel').innerText = systemState.completionPercent;
+        document.getElementById('hwLed').style.backgroundColor = systemState.ledColor;
+
+        // Sync ERP Side to State
+        document.getElementById('erpTaskStatus').innerText = systemState.taskStatus ? 'Done' : 'To Do';
+        document.getElementById('erpCompletion').innerText = systemState.completionPercent + '%';
+        
+        const alertCell = document.getElementById('erpAlertStatus');
+        if (systemState.alertActive) {
+            alertCell.innerText = '🚨 ACTIVE';
+            alertCell.style.color = 'red';
+            alertCell.style.fontWeight = 'bold';
+        } else {
+            alertCell.innerText = 'Clear';
+            alertCell.style.color = 'black';
+            alertCell.style.fontWeight = 'normal';
+        }
+    }
+</script>
+
+</body>
+</html>
