@@ -1,239 +1,37 @@
 # Odoo Integration
 
-## 1. Objective
-
-The visual-management station must synchronize physical operational state with Odoo ERP.
-
-The integration is bidirectional.
-
-Physical station events may update Odoo objects.
-
-Odoo changes may also generate commands or state updates that are transmitted back to physical stations.
-
----
-
-## 2. Proposed Architecture
+The delivered integration uses `backend.odoo_adapter.OdooAdapter`, an abstract interface with `handle_event(StationEvent) -> list[(topic, JSON)]`. `MockOdooAdapter` implements it with an in-memory dictionary of `Workstation` objects keyed by device ID. No Odoo server, database, credentials or live API calls are involved.
 
 ```text
-ESP32-S3
-    |
-    v
-MQTT Broker
-    |
-    v
-Middleware / Backend
-    |
-    v
-Odoo API
-    |
-    v
-Odoo ERP
+Station JSON -> protocol validation -> Middleware -> MockOdooAdapter
+                                                      |
+                                  workstation fields / generated command
+                                                      |
+                      station command topic <- Middleware publisher
 ```
 
-An intermediary backend is preferred rather than allowing embedded devices to directly modify the Odoo database.
+| Station input | Simulated workstation field | Demonstrated behavior |
+|---|---|---|
+| Source 1: button pressed/released | `button_pressed` | Assign boolean operator input state |
+| Source 2: toggle | `task_done`, `desired_output` | Assign task status; generate `set_output` matching done state |
+| Source 3: encoder | `target_count` | Assign absolute count; does not increment on duplicate reception |
+| Source 4: analog | `progress_percent` | Assign progress 0–100 |
+| Heartbeat | `free_heap_bytes`, `last_device_uptime_ms` | Store reported health observation |
+| Fault | `fault_code` | Store a simulated fault code |
+| Sync request | Existing `desired_output` | Generate `set_state`; no full reconciliation protocol |
 
----
+All handled events update `last_device_uptime_ms`, which is the event's generation uptime rather than server time. `set_remote_state(device_id, on)` demonstrates a simulated ERP-side change and returns a `set_state` publication. `python -m backend.demo` demonstrates both directions, including buffered replay, without requiring a broker.
 
-## 3. Station-to-Odoo Flow
+Mock mappings are intentionally small and readable; they are not real Odoo model names or record identifiers. Two immediate deliveries of an absolute input value leave the same state. There is no persistent deduplication or conflict resolution, and all workstation data disappears when the Python process restarts. If publication fails, the service reports the failure; it does not roll back mock state or provide a durable retry transaction.
 
-Example:
+## Future real adapter
 
-```text
-Operator moves toggle from TO DO to DONE
-                |
-                v
-Magnetic sensor detects position
-                |
-                v
-ESP32 generates event
-                |
-                v
-MQTT message published
-                |
-                v
-Backend receives message
-                |
-                v
-Backend maps input to Odoo object
-                |
-                v
-Odoo API update
-                |
-                v
-Task status becomes DONE
-```
+Implement `OdooAdapter.handle_event` in a separate class and select it where `MockOdooAdapter` is constructed in `backend/__main__.py`. Keep ERP-specific logic out of firmware drivers. That adapter should:
 
----
+1. Read `ODOO_URL`, `ODOO_DATABASE`, `ODOO_USER` and `ODOO_API_KEY` from environment/secret configuration. These are suggested extension variables, not currently consumed settings.
+2. Define an explicit `(device_id, source_id)` to Odoo model/record/field mapping for the agreed workflow.
+3. Choose the API supported by the actual deployed Odoo version, such as its JSON-RPC/XML-RPC/custom API, and test authentication and permissions there.
+4. Apply absolute state changes with an agreed retry, duplicate and conflict policy.
+5. Return validated commands, and add polling/webhook handling for independent ERP changes when required.
 
-## 4. Odoo-to-Station Flow
-
-Example:
-
-```text
-Task becomes overdue in Odoo
-              |
-              v
-Backend receives/detects change
-              |
-              v
-MQTT command published
-              |
-              v
-ESP32 receives command
-              |
-              v
-Remote event generated
-              |
-              v
-State manager updated
-              |
-              v
-Red status LED enabled
-```
-
----
-
-## 5. Backend Responsibilities
-
-The middleware may be responsible for:
-
-- subscribing to station MQTT messages
-- publishing station commands
-- validating messages
-- identifying stations
-- routing messages
-- detecting duplicate events
-- mapping physical controls to Odoo objects
-- authenticating with Odoo
-- performing API operations
-- retrying failed Odoo operations
-- maintaining synchronization information
-- producing logs and diagnostics
-
----
-
-## 6. Odoo Interface Options
-
-Potential Odoo interfaces include:
-
-- JSON-RPC
-- XML-RPC
-- REST or custom API
-- custom Odoo modules
-
-The final integration method depends on the available Odoo environment and project requirements.
-
----
-
-## 7. Device Mapping
-
-Physical interface identifiers should not be permanently hardcoded to specific Odoo database objects inside the low-level hardware driver.
-
-Conceptually:
-
-```text
-station_07
-
-task_03_toggle
-        |
-        v
-Configuration Mapping
-        |
-        v
-Odoo Task 183
-        |
-        v
-Status Field
-```
-
-This mapping architecture allows station configuration to change without requiring modification of the low-level input firmware.
-
----
-
-## 8. Example Station Event
-
-```json
-{
-  "device_id": "station_07",
-  "sequence_id": 1427,
-  "event_type": "toggle_changed",
-  "input_id": "task_03",
-  "value": "done"
-}
-```
-
-The backend interprets the physical interface ID and determines which Odoo object and field should be updated.
-
----
-
-## 9. Reverse Mapping
-
-Odoo data may similarly be mapped to physical outputs.
-
-Example:
-
-```text
-Odoo Task 183
-status = overdue
-       |
-       v
-Configuration Mapping
-       |
-       v
-station_07
-task_03_led
-       |
-       v
-LED ON
-```
-
----
-
-## 10. Synchronization
-
-The integration must account for cases where local state and ERP state differ.
-
-The synchronization design should consider:
-
-- event timestamps
-- sequence IDs
-- duplicate requests
-- offline events
-- remote updates while the station is offline
-- conflicting state changes
-- retries
-
-A final conflict-resolution policy remains to be defined.
-
----
-
-## 11. Configuration Interface
-
-A lightweight configuration interface is planned to allow a non-technical user to associate physical interfaces with specific ERP objects and fields.
-
-The final interface may allow configuration of:
-
-- station ID
-- input ID
-- interface type
-- Odoo object
-- Odoo record
-- Odoo field
-- output behaviour
-
-The exact UI implementation remains to be determined.
-
----
-
-## 12. Open Integration Items
-
-The following information remains to be confirmed:
-
-- Odoo version
-- Odoo development/test environment
-- selected API mechanism
-- authentication method
-- required Odoo models
-- required Odoo fields
-- permission to create custom Odoo modules
-- final synchronization policy
+There is no implemented real adapter, Odoo polling, webhook endpoint, mapping UI or API credential provisioning. No live Odoo integration was validated. A future real adapter requires its own integration tests against a test instance.

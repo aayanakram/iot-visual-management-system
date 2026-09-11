@@ -1,0 +1,6 @@
+#pragma once
+// Copy to DeviceConfig.local.hpp (ignored by Git) and edit for a local demo.
+#define STATION_DEVICE_ID "station_01"
+#define STATION_WIFI_SSID "YOUR_WIFI_SSID"
+#define STATION_WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+#define STATION_MQTT_URI "mqtt://YOUR_BROKER_ADDRESS:1883"

@@ -1,5 +1,8 @@
 # Hardware Design
 
+> Software prototype status: no physical hardware was built or electrically validated. Current firmware uses direct GPIO/ADC polling and one digital LED; expanders, PWM, calibration and flash-backed event storage below are future design options. The offline FIFO is RAM-only and does not survive reboot.
+
+
 ## Overview
 
 This directory documents the proposed hardware architecture for the IoT-connected visual management station.
@@ -114,7 +117,7 @@ The list is not intended to represent a finalized production Bill of Materials.
 
 Defines the logical relationship between physical controls, electrical interfaces, and firmware modules.
 
-Exact GPIO numbers remain intentionally unassigned because no physical station is being assembled in the current project.
+Final board-specific wiring is unassigned. Existing prototype GPIO values are recorded in [the interface map](pinout/interface-map.md) and have not been physically validated.
 
 ### schematics/conceptual-wiring.md
 

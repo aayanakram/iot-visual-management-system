@@ -1,258 +1,53 @@
 # MQTT Integration
 
-## 1. Overview
+Only two topic forms are implemented:
 
-MQTT is the selected primary communication protocol between the ESP32-S3 visual-management stations and the system backend.
+| Topic | Producer | Consumer |
+|---|---|---|
+| `kaizen/stations/<device_id>/events` | Station | Python middleware subscribing to `kaizen/stations/+/events` |
+| `kaizen/stations/<device_id>/commands` | Middleware | Matching station |
 
-MQTT is suitable for this architecture because it provides:
+Use a unique device ID of 1–64 ASCII letters, digits, underscores or hyphens. Firmware event and command topics use `config::MQTT_BASE_TOPIC`; the Python prototype uses the same fixed root. If changing the root, update both implementations. Events and commands are QoS 1, non-retained. Retained incoming commands/events are ignored. There are no `/state`, `/telemetry`, `/heartbeat` or `/config` subscriptions/publications.
 
-- lightweight communication
-- publish/subscribe messaging
-- bidirectional communication
-- asynchronous communication
-- multi-device routing
-- simple integration with IoT backends
-
----
-
-## 2. Architecture
-
-```text
-ESP32-S3
-    |
-    | MQTT over Wi-Fi/TLS
-    |
-    v
-MQTT Broker
-    |
-    v
-Backend / Middleware
-    |
-    v
-Odoo ERP
-```
-
-The ESP32 does not communicate directly with the Odoo database.
-
----
-
-## 3. Topic Structure
-
-The proposed MQTT hierarchy is:
-
-```text
-kaizen/stations/{device_id}/events
-kaizen/stations/{device_id}/state
-kaizen/stations/{device_id}/telemetry
-kaizen/stations/{device_id}/heartbeat
-kaizen/stations/{device_id}/commands
-kaizen/stations/{device_id}/config
-```
-
-Example for `station_07`:
-
-```text
-kaizen/stations/station_07/events
-kaizen/stations/station_07/state
-kaizen/stations/station_07/telemetry
-kaizen/stations/station_07/heartbeat
-kaizen/stations/station_07/commands
-kaizen/stations/station_07/config
-```
-
----
-
-## 4. Device-to-Backend Topics
-
-The station may publish to:
-
-```text
-/events
-/state
-/telemetry
-/heartbeat
-```
-
-### Events
-
-Used for individual physical or logical state-change events.
-
-### State
-
-Used for current station-state information or synchronization.
-
-### Telemetry
-
-Used for operational health and diagnostic information.
-
-### Heartbeat
-
-Used for periodic online/alive indication.
-
----
-
-## 5. Backend-to-Device Topics
-
-The station may subscribe to:
-
-```text
-/commands
-/config
-```
-
-### Commands
-
-Used for remote actions such as:
-
-- changing an LED
-- setting an output state
-- requesting synchronization
-- triggering supported device actions
-
-### Configuration
-
-Used for station-specific configuration updates where remote configuration is supported.
-
----
-
-## 6. Event Payload
-
-The proposed message format is JSON.
-
-Example:
+## Event JSON
 
 ```json
-{
-  "device_id": "station_07",
-  "sequence_id": 1427,
-  "event_type": "toggle_changed",
-  "input_id": "task_03",
-  "value": "done",
-  "timestamp": 1788894000,
-  "firmware_version": "0.1.0"
-}
+{"device_id":"station_01","sequence_id":1,"event_type":"toggle_changed","source_id":2,"value":1,"timestamp_ms":1234,"firmware_version":"0.1.0"}
 ```
 
-Fields may include:
+The backend requires exactly these seven fields and verifies that `device_id` matches the topic. Duplicate keys, missing/unknown fields, invalid types/ranges, unsupported event/source combinations and malformed JSON are rejected. Integers are required for numeric event fields; booleans are not integers in this contract. Maximum backend payload size is 4096 bytes for MQTT byte payloads.
 
-- device ID
-- sequence ID
-- event type
-- physical interface ID
-- new value
-- timestamp
-- firmware version
+| `event_type` | `source_id` | `value` |
+|---|---:|---|
+| `button_pressed` | 1 | 1 |
+| `button_released` | 1 | 0 |
+| `toggle_changed` | 2 | 0 or 1 |
+| `encoder_changed` | 3 | Signed 32-bit absolute quadrature edge count |
+| `analog_changed` | 4 | Integer percentage, 0–100 |
+| `heartbeat` | 0 | Nonnegative free heap bytes |
+| `fault_detected` | 0 | Signed integer fault code; reserved producer |
+| `sync_requested` | 0 | Signed integer; reserved producer |
 
----
+`timestamp_ms` is monotonic device uptime at generation, not Unix/UTC time. Heartbeat timestamps also represent device uptime; delivery can be delayed by MQTT. `sequence_id` is a uint32 counter assigned centrally, starting at 1 on each boot and wrapping through 0. Discarded heartbeats/full buffers can leave gaps. There is no boot ID, global ordering, durable deduplication or cross-reboot uniqueness. Preserve original timestamps/IDs when replaying.
 
-## 7. Remote Command Payload
-
-Example:
+## Command JSON
 
 ```json
-{
-  "device_id": "station_07",
-  "sequence_id": 7731,
-  "command": "set_output",
-  "output_id": "task_03_led",
-  "value": true
-}
+{"command":"set_output","value":true}
 ```
 
----
-
-## 8. Sequence Identifiers
-
-Sequence identifiers are intended to assist with:
-
-- duplicate detection
-- event ordering
-- retries
-- synchronization
-- debugging
-
-The exact acknowledgement and deduplication policy will be finalized during backend integration.
-
----
-
-## 9. Connection Recovery
-
-When MQTT communication is lost, the station should:
-
-```text
-Detect MQTT loss
-       |
-       v
-Continue local operation
-       |
-       v
-Buffer relevant outgoing events
-       |
-       v
-Restore Wi-Fi if required
-       |
-       v
-Reconnect to broker
-       |
-       v
-Restore subscriptions
-       |
-       v
-Restore synchronization
-       |
-       v
-Transmit pending events
+```json
+{"command":"set_state","value":false}
 ```
 
-Recovery should occur automatically.
+`set_output` creates `SetOutput`; `set_state` creates `RemoteStateUpdate`. Both set the single logical and LED output state. The topic selects the station. No device ID, sequence, output ID or timestamp is required in the command. Commands must have exactly two fields, and value must be boolean or numeric 0/1. The C++ parser supplies the receive timestamp and leaves sequence zero. Unknown commands, extra/duplicate fields, trailing data, embedded NULs, invalid values and messages over 512 bytes are rejected. MQTT fragments are deliberately rejected rather than reassembled; normal compact commands fit in one message buffer. Remote commands are not echoed as outgoing events, and there is no application command acknowledgement.
 
----
+## Recovery and delivery boundaries
 
-## 10. Offline Buffering
+ESP-MQTT retries connection every 5 seconds by configuration and resubscribes on each connection. Wi-Fi requests reconnect after a disconnection unless explicitly stopped. Middleware Paho reconnect backoff ranges from 1 to 30 seconds and subscribes in its connection callback. These API choices follow [Paho's client documentation](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html); host callback tests do not verify actual network reconnection.
 
-If an event cannot be published because the network or broker is unavailable, the firmware shall store the event according to the configured offline-buffering strategy.
+The firmware stores up to 64 unsent non-heartbeat events in RAM. A full queue drops the newest event and logs the loss. Application checks retry opportunities at least once per one-second receive timeout, so a missed MQTT connection notification or temporarily full MQTT outbox does not leave the FIFO waiting forever for another reconnect. An older FIFO entry must be accepted before a newer event. ESP-MQTT has a separate 16 KiB RAM outbox; accepted QoS 1 messages can be retransmitted by the library and may expire under its default policy.
 
-When communication returns, pending events shall be processed in a defined order.
+Neither queue survives reboot. Enqueue success is not confirmation of broker delivery or ERP application. MQTT cannot detect that this mock backend is down while the broker is up. The backend uses a clean session and no durable event store, and commands are not retained, so offline consumers may miss publications. Repeated absolute mock-state assignments tolerate immediate QoS 1 duplicates, but stale duplicates and independent changes can overwrite newer state. There is no conflict resolution or end-to-end delivery guarantee.
 
-The final design will define:
-
-- queue size
-- flash behaviour
-- ordering
-- expiry policy
-- retry limits
-- duplicate protection
-- conflict handling
-
----
-
-## 11. MQTT Security
-
-Production MQTT communication should use TLS.
-
-Credentials and private keys shall not be committed to source control.
-
-The exact certificate and credential-provisioning method remains to be finalized.
-
----
-
-## 12. Quality of Service
-
-MQTT QoS settings will be selected according to message type.
-
-Events that represent operational changes may require stronger delivery guarantees than periodic telemetry.
-
-Final QoS selection will be validated during system testing.
-
----
-
-## 13. Multi-Device Scalability
-
-Each station uses a unique device ID.
-
-This identifier is included in both:
-
-- MQTT topic paths
-- message payloads
-
-This allows the backend to independently route and manage messages from multiple physical stations.
+The default firmware URI is a plaintext placeholder. Production broker ACLs, authentication and device TLS credential provisioning are future work. The Python client can use configured username/password and a CA file; this does not imply production security was validated.

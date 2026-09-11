@@ -1,272 +1,44 @@
-# Testing and Validation
+# Software Validation Record
 
-## 1. Objective
+Validation date: 2026-09-11. Scope: student software prototype. No ESP32-S3 hardware, physical station or live Odoo instance was available.
 
-Testing will verify the operation, reliability, and recovery behaviour of the complete IoT visual-management station.
+## Commands and actual results
 
-Testing covers:
+| Check | Result |
+|---|---|
+| `idf.py build` in activated ESP-IDF 6.1 environment | Passed; `Project build complete` for ESP32-S3 |
+| Install `backend/requirements.txt` | Passed; Paho MQTT 2.1.0 installed in a project virtual environment |
+| `python firmware/tests/run_host_tests.py` | Passed; actual firmware logic groups listed below |
+| `python -m unittest discover -s tests -v` | 20 tests passed, no skips |
+| `python -m backend.demo` | Passed assertions; replayed sequences 1 and 2, mock progress 75, output true from toggle then false from remote state |
 
-- hardware interfaces
-- embedded firmware
-- networking
-- MQTT
-- offline operation
-- backend communication
-- Odoo integration
-- bidirectional synchronization
+## Firmware tests
 
----
+The host test runner compiles these actual modules: `MessageSerializer`, `OfflineEventStore`, `EventQueue`, `Application`, `StateManager`, `OutputManager`, `LedDriver`, `DigitalInput` and `RotaryEncoder`, plus the Component Manager's locked cJSON source. Small test-only headers stand in for timers, GPIO, FreeRTOS queue/mutex/task primitives and the Application-facing MQTT transport.
 
-## 2. Hardware Validation
+The executable verifies:
 
-Hardware testing shall verify:
+- Seven-field serialization, timestamps/sequence values, valid output/state commands and malformed/unsupported command rejection.
+- FIFO empty/peek/pop/clear, zero capacity, bounded overflow, preserved order and volatile fresh-store behavior.
+- Local state updates while disconnected, partial publish failure, ordered replay, retry without another reconnect event, and new events staying behind the backlog.
+- Remote command -> Application -> logical state -> output driver, with no command echo upstream.
+- Heartbeat generation with free heap/uptime and discarding unsendable heartbeats.
+- Initial debounced digital state, bounce rejection, accepted transition timestamp, encoder direction and invalid quadrature transition rejection.
 
-- supply voltages
-- GPIO voltage levels
-- digital input behaviour
-- magnetic sensor behaviour
-- rotary encoder behaviour
-- ADC ranges
-- LED outputs
-- PWM outputs where used
-- communication stability
-- signal integrity
-- power stability
+These tests exercise firmware code, but the queue/mutex/clock/GPIO behavior comes from host shims. They do not verify FreeRTOS timing/concurrency, ESP32 execution, electrical signals, ADC hardware or ESP-MQTT internals. AnalogInput, InputManager and the real Wi-Fi/MQTT managers are firmware-compiled and source-reviewed; their physical/network behavior remains unvalidated.
 
-Appropriate bench and debugging equipment will be used where available.
+## Python and cross-language tests
 
----
+The Python suite verifies event round trips, all supported event kinds, numeric/source ranges, missing/extra/duplicate fields, malformed JSON, station topic matching, valid/invalid commands, mock Odoo mappings, station isolation, repeated absolute assignments, reverse commands, publish failure visibility, callback resubscription and retained/malformed event rejection followed by recovery.
 
-## 3. Digital Input Testing
+Simulation tests cover both directions, bounded overflow, loss on simulated restart, failed flush ordering and subsequent recovery. The cross-language tests run the host executable to serialize a firmware event, parse it in Python, apply it to the mock adapter, and feed generated JSON commands back into the actual C++ command parser. They also run a shared rejection corpus.
 
-Digital interfaces shall be tested for:
+`backend.demo` uses function calls as transport. No socket, MQTT broker, real Odoo API or ESP32 is involved. Paho client construction and callback tests do not establish broker connectivity or reconnection timing. An optional broker-assisted procedure is documented in [setup-deployment.md](setup-deployment.md), but was not run during this validation.
 
-- press detection
-- release detection
-- toggle state changes
-- repeated activation
-- rapid activation
-- debounce performance
-- noisy transitions
-- invalid transitions
+## Remaining build warnings
 
----
+ESP-IDF configuration emitted private-include dependency warnings for `wpa_supplicant` using `esp_wifi` directories, plus upstream Kconfig notes about invalid boolean defaults in Bluetooth/FATFS and duplicate Bluetooth rename mappings. These were warnings/notes, not application compile errors. No ESP-IDF/vendor sources were modified to suppress them. The application image uses roughly 90% of its 1 MiB application partition; future growth should account for that margin.
 
-## 4. Rotary Encoder Testing
+## Required future physical/live-system validation
 
-Encoder testing shall include:
-
-- clockwise rotation
-- counter-clockwise rotation
-- correct count changes
-- rapid movement
-- repeated direction changes
-- invalid quadrature transitions
-- missed-transition behaviour
-
----
-
-## 5. Analog Input Testing
-
-Analog interfaces shall be tested for:
-
-- minimum value
-- maximum value
-- ADC range
-- calibration
-- scaling
-- stationary noise
-- filtering
-- deadband behaviour
-- repeated movement
-
-The control should not generate continuous state-change messages while physically stationary.
-
----
-
-## 6. Output Testing
-
-Output interfaces shall be tested for:
-
-- local activation
-- local deactivation
-- remote activation
-- remote deactivation
-- correct mapping
-- correct state after reconnect
-- PWM operation where applicable
-
----
-
-## 7. Wi-Fi Testing
-
-Wi-Fi testing shall include:
-
-- normal connection
-- connection failure
-- temporary disconnection
-- automatic reconnection
-- repeated disconnection
-- weak-signal behaviour where practical
-
----
-
-## 8. MQTT Testing
-
-MQTT testing shall include:
-
-- initial broker connection
-- message publishing
-- message subscription
-- disconnect detection
-- automatic reconnect
-- topic resubscription
-- malformed message handling
-- duplicate message handling
-
----
-
-## 9. Offline Operation Testing
-
-Offline behaviour shall be tested using the following process:
-
-```text
-1. Establish normal operation
-2. Disconnect Wi-Fi or MQTT
-3. Generate multiple physical events
-4. Verify local station operation continues
-5. Verify events are buffered
-6. Restore connectivity
-7. Verify automatic reconnection
-8. Verify MQTT subscriptions are restored
-9. Verify buffered events are transmitted
-10. Verify synchronization is restored
-```
-
-No intended operational event should be silently lost.
-
----
-
-## 10. Reboot and Power-Cycle Testing
-
-Testing shall include:
-
-- normal ESP32 reboot
-- unexpected reset
-- full power cycle
-- reboot while online
-- reboot while offline
-- recovery of persistent configuration
-- recovery of relevant local state
-- recovery of pending events where required
-
----
-
-## 11. End-to-End Physical-to-Odoo Test
-
-The complete forward communication path shall be validated.
-
-```text
-Physical Control
-      |
-      v
-ESP32 Input Driver
-      |
-      v
-Internal Event
-      |
-      v
-State Manager
-      |
-      v
-MQTT
-      |
-      v
-Backend
-      |
-      v
-Odoo
-```
-
-A physical action must produce the expected Odoo update.
-
----
-
-## 12. End-to-End Odoo-to-Physical Test
-
-The reverse communication path shall also be validated.
-
-```text
-Odoo
- |
- v
-Backend
- |
- v
-MQTT
- |
- v
-ESP32
- |
- v
-State Manager
- |
- v
-Output Driver
- |
- v
-Physical Indicator
-```
-
-An ERP-side state change must produce the intended physical response.
-
----
-
-## 13. Fault Injection
-
-Fault testing should include:
-
-- Wi-Fi loss
-- broker loss
-- backend loss
-- malformed JSON
-- invalid command
-- duplicate message
-- device reboot
-- device power cycle
-- rapid repeated input events
-- invalid input values
-
-The expected response should be controlled recovery rather than undefined behaviour.
-
----
-
-## 14. Performance Measurements
-
-Where practical, the following measurements shall be collected:
-
-- physical-event-to-ERP latency
-- ERP-to-physical-indicator latency
-- Wi-Fi reconnect time
-- MQTT reconnect time
-- event-loss rate
-- number of supported interfaces
-- successful recovery rate
-- uptime during continuous testing
-
----
-
-## 15. Test Documentation
-
-Test results should record:
-
-- test name
-- test conditions
-- expected result
-- actual result
-- pass/fail
-- measured value where relevant
-- observations
-- corrective action if required
-
-Measured results will be added after prototype implementation and validation.
+Flashing, GPIO/power inspection, button/toggle/encoder/slider operation, analog accuracy, electrical debounce, output current, hardware timing, stack margins, Wi-Fi RF, actual MQTT recovery, reboot/power-cycle behavior, long-duration operation, multi-station load and live Odoo integration remain untested. The RAM queue intentionally loses events on reset. No measured latency, RF recovery time, physical event-loss rate or production reliability claim is made.

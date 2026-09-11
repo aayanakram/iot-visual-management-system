@@ -1,584 +1,105 @@
-# Setup and Deployment
+# Setup and Local Demonstration
 
-## 1. Overview
+The validated scope is software-only. You need ESP-IDF 6.1 with ESP32-S3 tools, Python 3.10+, and a host C++ compiler for firmware logic tests. A board, broker and Odoo instance are not needed for compilation or the in-process demo. A broker is required to run the MQTT middleware against a network transport.
 
-This document describes the planned development, setup, configuration, and deployment process for the IoT-connected visual management station.
+## Firmware
 
-The system consists of:
+Use an activated ESP-IDF shell and start from the repository root:
 
-- ESP32-S3 embedded hardware
-- ESP-IDF firmware written in C++
-- FreeRTOS-based application tasks
-- Wi-Fi connectivity
-- MQTT communication
-- backend/middleware services
-- Odoo ERP integration
-
-The deployment procedure will be updated as the prototype implementation is completed.
-
----
-
-## 2. Development Requirements
-
-The firmware development environment requires:
-
-- ESP32-S3 development board
-- USB cable for programming and debugging
-- ESP-IDF
-- C++ toolchain
-- Git
-- serial terminal
-- Wi-Fi network
-- MQTT broker
-- backend development environment
-- Odoo development or test environment
-
-Recommended debugging equipment may include:
-
-- digital multimeter
-- oscilloscope
-- logic analyzer
-
-depending on hardware availability.
-
----
-
-## 3. Repository Structure
-
-The project repository is organized as follows:
-
-```text
-iot-visual-management-station/
-|
-+-- backend/
-|
-+-- docs/
-|
-+-- firmware/
-|
-+-- hardware/
-|
-+-- tests/
-|
-+-- README.md
-```
-
-### backend/
-
-Contains middleware used to connect MQTT station messages with Odoo.
-
-### docs/
-
-Contains:
-
-- system requirements
-- system architecture
-- firmware architecture
-- MQTT integration documentation
-- Odoo integration documentation
-- testing documentation
-- known limitations
-- deployment instructions
-
-### firmware/
-
-Contains the ESP-IDF firmware for the ESP32-S3.
-
-### hardware/
-
-Contains hardware design information including:
-
-- schematics
-- pin mappings
-- bill of materials
-- component documentation
-
-### tests/
-
-Contains test procedures, scripts, and recorded validation results where applicable.
-
----
-
-## 4. ESP-IDF Installation
-
-The firmware is developed using Espressif's ESP-IDF framework.
-
-ESP-IDF should be installed using the official Espressif installation procedure for the host operating system.
-
-After installation, verify that the ESP-IDF development environment is available:
-
-```bash
-idf.py --version
-```
-
-The exact ESP-IDF version used for the final prototype should be recorded before final deployment.
-
----
-
-## 5. Firmware Setup
-
-Navigate to the firmware directory:
-
-```bash
+```sh
 cd firmware
-```
-
-Set the project target to ESP32-S3:
-
-```bash
-idf.py set-target esp32s3
-```
-
-Configure the project where required:
-
-```bash
-idf.py menuconfig
-```
-
-Configuration options may include:
-
-- Wi-Fi support
-- MQTT support
-- TLS settings
-- logging
-- FreeRTOS configuration
-- flash configuration
-- partition configuration
-- watchdog configuration
-
----
-
-## 6. Firmware Build
-
-Build the ESP-IDF project using:
-
-```bash
+idf.py --version
 idf.py build
 ```
 
-The build process should complete without errors before firmware is flashed to the device.
+The default CMake target is ESP32-S3. If a previous build targeted another chip, use `idf.py set-target esp32s3` first; that command regenerates target configuration. `sdkconfig.defaults` sets a 1000 Hz FreeRTOS tick and a 4096-byte ESP main task stack. `sdkconfig` is local/generated and ignored. Component Manager retrieves the versions in `main/idf_component.yml` and `dependencies.lock`; keep the lock file, while `managed_components/` and `build/` are ignored. First-time dependency retrieval requires network access or a populated cache.
 
----
+On the validation Windows machine, the installed environment is activated with:
 
-## 7. Flashing the ESP32-S3
-
-Connect the ESP32-S3 to the development computer using USB.
-
-Flash the firmware using:
-
-```bash
-idf.py flash
+```powershell
+. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1
+$env:PYTHONUTF8 = '1'
+idf.py build
 ```
 
-If a serial port must be selected manually:
+That path is machine-specific. Other installations should use their own ESP-IDF shell or export script. A bare shell may not have `idf.py` on PATH.
 
-```bash
-idf.py -p <PORT> flash
+For future hardware operation, copy `main/config/DeviceConfig.local.hpp.example` to `main/config/DeviceConfig.local.hpp` and edit the four macros. This optional local header is ignored by Git. Keep device IDs to 1–64 letters, digits, underscores or hyphens and assign a different ID to each active station. Firmware defaults remain placeholders. `idf.py menuconfig` configures ESP-IDF settings; it does not provide station Wi-Fi/broker fields for this prototype.
+
+The firmware currently requires a WPA2-compatible Wi-Fi access point. A plaintext `mqtt://` URI is suitable for a controlled local prototype; no device credential provisioning or production TLS setup is supplied. Do not put real network secrets in tracked source or example files.
+
+## Python backend
+
+From the repository root:
+
+```sh
+python -m venv .venv
 ```
 
-Example:
+Activate the environment with `.venv\Scripts\Activate.ps1` in PowerShell or `source .venv/bin/activate` on POSIX, then:
 
-```bash
-idf.py -p COM5 flash
+```sh
+python -m pip install -r backend/requirements.txt
+python -m backend.demo
 ```
 
-The exact port depends on the development computer.
+The demo uses an in-process simulated station, transport callbacks and the real protocol/middleware/mock adapter. It asserts ordered offline replay, a toggle-driven output command, analog mapping and an independent mock ERP output change. It does not connect to MQTT or Odoo.
 
----
+To connect the backend to a broker, configure environment variables. PowerShell example:
 
-## 8. Serial Monitoring
-
-ESP-IDF serial monitoring can be started using:
-
-```bash
-idf.py monitor
+```powershell
+$env:MQTT_HOST = 'localhost'
+$env:MQTT_PORT = '1883'
+python -m backend
 ```
 
-Flashing and monitoring can also be performed in one command:
+POSIX example:
 
-```bash
-idf.py flash monitor
+```sh
+MQTT_HOST=localhost MQTT_PORT=1883 python -m backend
 ```
 
-Serial logs should provide information including:
+| Variable | Default / meaning |
+|---|---|
+| `MQTT_HOST` | `localhost` |
+| `MQTT_PORT` | `1883`; use the broker's actual TLS port when configuring TLS |
+| `MQTT_CLIENT_ID` | `kaizen-demo-backend`; make unique if running multiple clients |
+| `MQTT_USERNAME` | Optional broker username |
+| `MQTT_PASSWORD` | Optional broker password |
+| `MQTT_CA_FILE` | Optional CA file; setting it enables Paho TLS certificate verification |
 
-- system startup
-- firmware version
-- device ID
-- input initialization
-- Wi-Fi connection status
-- MQTT connection status
-- event processing
-- synchronization
-- errors
-- recovery operations
+`.env.example` is a reference only: export variables yourself. There is no dotenv dependency or automatic `.env` loading. The backend retries initial connection and later reconnects; stop with Ctrl+C. No Odoo variables are currently needed because the selected adapter is a mock.
 
-Sensitive credentials must not be printed in logs.
+## Optional broker-assisted software check
 
----
+This procedure was **not** part of recorded validation. Start a local MQTT broker you control and run `python -m backend`. With Mosquitto CLI tools installed, open a subscriber first:
 
-## 9. Device Configuration
-
-Each physical station requires station-specific configuration.
-
-Configuration may include:
-
-- unique device ID
-- station name
-- Wi-Fi settings
-- MQTT broker settings
-- MQTT credentials
-- input mappings
-- output mappings
-- backend configuration
-- station-specific behaviour
-
-Where appropriate, persistent configuration shall be stored using ESP32 NVS.
-
-The firmware should avoid requiring source-code changes for normal station-specific configuration.
-
----
-
-## 10. Device Identification
-
-Each station shall have a unique device identifier.
-
-Example:
-
-```text
-station_01
-station_02
-station_03
+```sh
+mosquitto_sub -h localhost -t kaizen/stations/station_01/commands -q 1 -v
 ```
 
-The device ID is used for:
+Save the event example from [mqtt-integration.md](mqtt-integration.md) as a UTF-8 file `event.json`, then publish it in another terminal (no retain flag):
 
-- MQTT topic routing
-- backend identification
-- telemetry
-- configuration
-- ERP mapping
-
-Device IDs must not be duplicated between active stations.
-
----
-
-## 11. Wi-Fi Configuration
-
-The station requires access to an appropriate Wi-Fi network.
-
-The firmware shall support:
-
-- initial connection
-- connection monitoring
-- automatic reconnection
-- operation during temporary network loss
-
-Production Wi-Fi credentials must not be committed to the public source repository.
-
-The final Wi-Fi provisioning method remains to be finalized.
-
----
-
-## 12. MQTT Configuration
-
-Each device requires access to an MQTT broker.
-
-Required configuration may include:
-
-- broker hostname or IP address
-- broker port
-- device ID
-- authentication credentials
-- TLS configuration
-- topic configuration
-
-The planned topic structure is:
-
-```text
-kaizen/stations/{device_id}/events
-kaizen/stations/{device_id}/state
-kaizen/stations/{device_id}/telemetry
-kaizen/stations/{device_id}/heartbeat
-kaizen/stations/{device_id}/commands
-kaizen/stations/{device_id}/config
+```sh
+mosquitto_pub -h localhost -t kaizen/stations/station_01/events -q 1 -f event.json
 ```
 
-Production MQTT communication should use TLS.
+Expected command JSON is `{"command":"set_output","value":true}`. This verifies middleware through a broker with a software publisher/subscriber; it still does not validate ESP32 networking or physical output. Add the broker's authentication/TLS options when required. Use a local broker you control for this demonstration.
 
----
+## Automated software checks
 
-## 13. Backend Setup
+From the root, after the firmware build:
 
-The backend/middleware is responsible for connecting device MQTT communication with Odoo.
-
-The backend may perform:
-
-- MQTT subscription
-- MQTT publishing
-- message validation
-- device identification
-- message routing
-- duplicate detection
-- device-to-Odoo mapping
-- Odoo authentication
-- Odoo API requests
-- synchronization
-- retry handling
-- logging
-
-Final backend setup instructions will be added after the middleware implementation is completed.
-
----
-
-## 14. Odoo Setup
-
-A development or test Odoo environment should be used during integration testing.
-
-The final setup will require:
-
-- Odoo server address
-- authentication credentials
-- database or instance information
-- selected API mechanism
-- required models
-- required fields
-- station-to-Odoo mappings
-
-Potential integration methods include:
-
-- JSON-RPC
-- XML-RPC
-- REST/custom API
-- custom Odoo module
-
-The final method remains to be confirmed.
-
----
-
-## 15. Physical Interface Setup
-
-Before deploying a station, each physical interface must be mapped to the corresponding firmware input or output.
-
-Interfaces may include:
-
-- toggle switches
-- magnetic sensors
-- push buttons
-- rotary encoders
-- analog sliders
-- LEDs
-- status indicators
-
-The final hardware interface map shall document:
-
-- interface ID
-- interface type
-- GPIO or peripheral
-- expected signal type
-- associated physical control
-- associated station function
-
----
-
-## 16. Initial Device Bring-Up
-
-The recommended initial bring-up sequence is:
-
-```text
-1. Verify power supply
-2. Connect ESP32-S3
-3. Flash firmware
-4. Open serial monitor
-5. Confirm device initialization
-6. Verify physical inputs
-7. Verify physical outputs
-8. Connect to Wi-Fi
-9. Connect to MQTT broker
-10. Verify MQTT publishing
-11. Verify MQTT subscription
-12. Verify backend communication
-13. Verify Odoo integration
-14. Perform bidirectional system test
+```sh
+python firmware/tests/run_host_tests.py
+python -m unittest discover -s tests -v
+python -m backend.demo
 ```
 
----
+The host runner locates `g++` by default; set `CXX` to a compatible compiler executable if needed. It builds `firmware/build-host/host_tests[.exe]` from actual C++ modules plus locked cJSON and test-only shims. Python contract tests require this executable. If testing an alternate checkout layout, `FIRMWARE_DIR` can specify its firmware directory. The recorded environment used MinGW GCC 6.3.0 for host tests and the ESP-IDF Xtensa toolchain for the firmware.
 
-## 17. Hardware Validation Before Deployment
+## Future physical bring-up
 
-Before deployment, verify:
+Select a board and inspect the conceptual [interface map](../hardware/pinout/interface-map.md), supply, grounding, voltage limits and LED resistor before connecting anything. Validate ADC range and pin availability against that board. Only when hardware is available and wiring has been checked, use `idf.py -p <PORT> flash monitor` from `firmware/`.
 
-- correct supply voltage
-- stable power
-- correct GPIO behaviour
-- correct ADC ranges
-- reliable encoder operation
-- reliable sensor operation
-- correct LED/output behaviour
-- communication stability
-- secure electrical connections
-
-Any interface faults should be resolved before connecting the station to the production backend.
-
----
-
-## 18. Connectivity Validation
-
-After network configuration, verify:
-
-```text
-ESP32 -> Wi-Fi
-ESP32 -> MQTT Broker
-MQTT Broker -> Backend
-Backend -> Odoo
-```
-
-The reverse communication path must also be verified:
-
-```text
-Odoo -> Backend
-Backend -> MQTT Broker
-MQTT Broker -> ESP32
-ESP32 -> Physical Output
-```
-
----
-
-## 19. Offline Recovery Validation
-
-Before deployment, temporary connectivity loss should be tested.
-
-Procedure:
-
-```text
-1. Establish normal operation
-2. Disconnect network connectivity
-3. Generate physical station events
-4. Verify local operation continues
-5. Verify events are buffered
-6. Restore network connectivity
-7. Verify automatic reconnection
-8. Verify MQTT subscriptions are restored
-9. Verify buffered events are transmitted
-10. Verify local and ERP state synchronization
-```
-
----
-
-## 20. Production Deployment
-
-A final station deployment should include:
-
-```text
-Hardware assembly
-        |
-        v
-Electrical validation
-        |
-        v
-Firmware flashing
-        |
-        v
-Device configuration
-        |
-        v
-Wi-Fi configuration
-        |
-        v
-MQTT configuration
-        |
-        v
-Backend registration
-        |
-        v
-Odoo mapping
-        |
-        v
-Functional validation
-        |
-        v
-Offline/recovery test
-        |
-        v
-Station ready for operation
-```
-
----
-
-## 21. Updating Firmware
-
-During development, firmware may be updated through USB using ESP-IDF.
-
-```bash
-idf.py flash
-```
-
-OTA firmware updates are planned as a future or extended deployment capability.
-
-If OTA functionality is implemented, deployment documentation will be expanded to cover:
-
-- remote update initiation
-- firmware version validation
-- firmware integrity checking
-- update success verification
-- rollback or recovery behaviour
-
----
-
-## 22. Security Considerations
-
-The following must not be committed to the source repository:
-
-- Wi-Fi passwords
-- MQTT passwords
-- Odoo passwords
-- API tokens
-- TLS private keys
-- production secrets
-
-Example or placeholder configuration values may be provided for development documentation.
-
-Production credentials should be provisioned separately.
-
----
-
-## 23. Deployment Checklist
-
-Before a station is considered ready for deployment, verify:
-
-- [ ] hardware connections inspected
-- [ ] supply voltage verified
-- [ ] firmware builds successfully
-- [ ] firmware flashed successfully
-- [ ] correct device ID configured
-- [ ] input interfaces verified
-- [ ] output interfaces verified
-- [ ] Wi-Fi connection verified
-- [ ] MQTT connection verified
-- [ ] MQTT publishing verified
-- [ ] MQTT subscription verified
-- [ ] backend communication verified
-- [ ] Odoo update verified
-- [ ] Odoo-to-station update verified
-- [ ] offline buffering tested
-- [ ] automatic reconnection tested
-- [ ] synchronization recovery tested
-- [ ] serial logs checked for unexpected faults
-
----
-
-## 24. Current Deployment Limitations
-
-The following items remain under development or require confirmation:
-
-- final physical interface allocation
-- production power architecture
-- final MQTT broker
-- production credential provisioning
-- final Odoo API mechanism
-- final configuration interface
-- final offline reconciliation policy
-- OTA firmware update implementation
-- formal environmental protection requirements
-
-This document will be updated as these items are finalized.
+Future validation should cover initial input states, debounce, encoder edge rate/detents, ADC scaling, output behavior, Wi-Fi loss/recovery, broker loss/resubscription, FIFO overflow and reset loss. A future live Odoo adapter requires a separate test instance and validated API mapping. No flashing, electrical checks, RF checks or live Odoo testing are claimed here.

@@ -1,5 +1,8 @@
 # Hardware Architecture
 
+> Software prototype status: no physical hardware was built or electrically validated. Current firmware uses direct GPIO/ADC polling and one digital LED; expanders, PWM, calibration and flash-backed event storage below are future design options. The offline FIFO is RAM-only and does not survive reboot.
+
+
 ## Overview
 
 The proposed visual management station uses an ESP32-S3 as the main embedded controller.
@@ -48,7 +51,7 @@ No complete physical hardware prototype is being assembled as part of the curren
           Indicators
 
                        |
-                  Wi-Fi / TLS
+                  Wi-Fi (TLS future)
                        |
                        v
                   MQTT Broker
@@ -260,7 +263,7 @@ The exact SDA and SCL GPIO assignments are intentionally left TBD until a specif
 
 ## Persistent Storage
 
-The initial architecture uses the ESP32-S3's internal flash and NVS rather than requiring external storage.
+ESP-IDF services initialize internal NVS. The application currently keeps its configuration in compiled constants and its state/offline events in RAM. The following persistent data list is a possible future extension, not implemented storage.
 
 Persistent storage may contain:
 
@@ -304,7 +307,7 @@ Publish      Store Event
 
 The current project implements this primarily as a firmware and software function.
 
-Persistent flash storage may be used where queued events must survive a reset or power loss.
+The implemented queue holds up to 64 events in volatile RAM and loses all pending events on reset or power loss. Flash persistence is a future extension only.
 
 ## Power Architecture
 
@@ -367,3 +370,6 @@ Before physical deployment, the following areas should be verified:
 - enclosure integration
 
 The current project provides the recommended hardware architecture only and does not claim physical electrical validation.
+## Implemented ADC Scope
+
+The firmware currently scales raw 12-bit ADC readings to 0-100 and applies a 2-percentage-point deadband. Calibration and smoothing shown in the conceptual pipeline are future work. A 3.3 V potentiometer supply is conceptual wiring, not a claim that the ADC accurately measures the entire rail-to-rail range; verify the selected board and ADC input range before connecting hardware.

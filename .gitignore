@@ -1,0 +1,45 @@
+# ESP-IDF generated files; keep manifests, defaults and dependencies.lock.
+firmware/build*/
+managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+.submission-stage/
+firmware/main/config/DeviceConfig.local.hpp
+
+# Local Python environments and caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Temporary logs and compiled artifacts.
+*.log
+*_log.txt
+*.bin
+*.elf
+*.o
+*.obj
+*.a
+*.exe
+*.map
+
+# Local secrets and machine-specific editor settings.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+.vscode/
+.idea/
+.clangd
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini

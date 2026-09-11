@@ -1,5 +1,8 @@
 # Conceptual Wiring
 
+> Software prototype status: no physical hardware was built or electrically validated. Current firmware uses direct GPIO/ADC polling and one digital LED; expanders, PWM, calibration and flash-backed event storage below are future design options. The offline FIFO is RAM-only and does not survive reboot.
+
+
 ## Overview
 
 This document provides conceptual connection diagrams for the proposed physical interfaces used by the IoT-connected visual management station.
@@ -244,3 +247,6 @@ Before physical implementation, a complete electrical schematic should be produc
 - power integrity
 
 No physical electrical validation is claimed as part of the current project.
+## Implemented ADC Scope
+
+The firmware currently scales raw 12-bit ADC readings to 0-100 and applies a 2-percentage-point deadband. Calibration and smoothing shown in the conceptual pipeline are future work. A 3.3 V potentiometer supply is conceptual wiring, not a claim that the ADC accurately measures the entire rail-to-rail range; verify the selected board and ADC input range before connecting hardware.

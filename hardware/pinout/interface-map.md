@@ -1,10 +1,25 @@
 # Hardware Interface Map
 
+> Software prototype status: no physical hardware was built or electrically validated. Current firmware uses direct GPIO/ADC polling and one digital LED; expanders, PWM, calibration and flash-backed event storage below are future design options. The offline FIFO is RAM-only and does not survive reboot.
+
+
 ## Overview
 
 This document defines the proposed logical connection between physical station interfaces and the ESP32-S3.
 
-Exact GPIO numbers are intentionally not assigned because the final development board and physical interface quantities have not yet been finalized.
+The source contains prototype GPIO assignments; the final board and physical wiring have not been selected or validated. The table below records the current software mapping.
+
+## Current Firmware Prototype Mapping
+
+| Function | Numeric source ID | Prototype connection |
+|---|---:|---|
+| Button | 1 | GPIO4, active-low with pull-up |
+| Toggle | 2 | GPIO5, active-low with pull-up |
+| Encoder | 3 | GPIO6 (A), GPIO7 (B) |
+| Analog slider | 4 | ADC1 channel 0, ESP32-S3 GPIO1 |
+| Status LED | Command source 0 | GPIO2, active-high digital output |
+
+Values come from `firmware/main/config/DeviceConfig.hpp` and `firmware/main/main.cpp`. They are not a validated board pinout. Source IDs in MQTT are integers, not the example human-readable labels in the conceptual mapping below. No expander driver, PWM output or I2C bus is currently instantiated.
 
 ## Interface Allocation
 
@@ -62,7 +77,7 @@ The analog signal must remain within the permitted input range of the selected E
 
 ## I2C Expansion Bus
 
-The proposed architecture reserves an I2C bus for digital or output expansion devices.
+The proposed future architecture would reserve an I2C bus for digital or output expansion devices.
 
 ```text
 ESP32-S3
@@ -133,7 +148,7 @@ confirmation_button
 
 ## Pin Assignment Status
 
-Exact GPIO allocation is currently TBD.
+Final validated GPIO allocation is TBD; the source uses the prototype values listed above.
 
 This is intentional because:
 

@@ -1,5 +1,8 @@
 # Recommended Components
 
+> Software prototype status: no physical hardware was built or electrically validated. Current firmware uses direct GPIO/ADC polling and one digital LED; expanders, PWM, calibration and flash-backed event storage below are future design options. The offline FIFO is RAM-only and does not survive reboot.
+
+
 ## Overview
 
 This document provides a preliminary list of hardware components recommended for a future physical implementation of the visual management station.

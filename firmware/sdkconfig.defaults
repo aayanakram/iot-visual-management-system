@@ -1,0 +1,5 @@
+# run the FreeRTOS scheduler at 1000 Hz for 1 ms tick resolution
+CONFIG_FREERTOS_HZ=1000
+
+# give the ESP-IDF main application task enough stack for initialization
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
