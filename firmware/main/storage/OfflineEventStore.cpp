@@ -23,6 +23,28 @@ bool OfflineEventStore::push(const Event& event)
         return false;
     }
 
+    /*
+     * Physical inputs carry absolute state, so an older buffered value from the
+     * same source is already obsolete. Replacing it keeps the backlog bounded by
+     * the number of sources rather than by the length of the outage, which is
+     * what lets replay finish at the station's current value.
+     *
+     * System-source events describe discrete occurrences instead of state, so
+     * they are left alone.
+     */
+    if (event.sourceId != SYSTEM_SOURCE_ID)
+    {
+        for (auto it = events_.begin(); it != events_.end(); ++it)
+        {
+            if (it->sourceId == event.sourceId)
+            {
+                events_.erase(it);
+                ++coalescedCount_;
+                break;
+            }
+        }
+    }
+
     // Keep the buffer bounded so disconnected operation cannot consume memory indefinitely.
     if (events_.size() >= capacity_)
     {
@@ -30,6 +52,7 @@ bool OfflineEventStore::push(const Event& event)
         return false;
     }
 
+    // The newest value goes to the back so replay still ascends by sequence ID.
     events_.push_back(event);
 
     unlock();
@@ -84,6 +107,7 @@ void OfflineEventStore::clear()
     }
 
     events_.clear();
+    coalescedCount_ = 0;
 
     unlock();
 }
@@ -133,6 +157,20 @@ bool OfflineEventStore::full()
     unlock();
 
     return isFull;
+}
+
+std::size_t OfflineEventStore::coalescedCount()
+{
+    if (!lock())
+    {
+        return 0;
+    }
+
+    const std::size_t count = coalescedCount_;
+
+    unlock();
+
+    return count;
 }
 
 bool OfflineEventStore::lock()

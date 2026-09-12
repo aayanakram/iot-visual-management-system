@@ -11,7 +11,7 @@ The prototype connects physical visual-management inputs to a simulated ERP work
 | Analog input | ADC1 channel 0, raw percentage, 2-point deadband | Firmware compilation; ADC hardware remains unvalidated |
 | Output | One active-high digital LED; remote state/output events | Host state/output tests; physical output unvalidated |
 | MQTT integration | Two station-specific topics, JSON, QoS 1, reconnect/resubscribe | Protocol/contract and callback tests; broker behavior requires a broker test |
-| Offline operation | 64-event bounded RAM FIFO with ordered retry and logged overflow | Actual FIFO/application host tests; no reboot persistence |
+| Offline operation | 64-event bounded RAM FIFO, newest-per-source coalescing, ordered retry, logged overflow | Actual FIFO/application host tests; no reboot persistence |
 | Health | 30-second application heartbeat containing free heap and uptime | Actual application loop with a host timer shim |
 | Backend | Python/Paho event validation and routing | Python tests and deterministic demo |
 | ERP demonstration | Odoo adapter interface plus mock workstation mappings and reverse commands | Mock only; no live Odoo validation |

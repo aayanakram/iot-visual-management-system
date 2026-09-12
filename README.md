@@ -39,7 +39,7 @@ Two application tasks handle input polling and event processing. ESP-IDF owns th
 - One digital LED output, controlled through `set_output` or `set_state` commands.
 - Central event sequencing, monotonic millisecond timestamps, cJSON serialization and strict command shape/value checks.
 - Wi-Fi reconnect requests, ESP-MQTT automatic reconnect and command resubscription.
-- A 64-event offline FIFO, a bounded ESP-MQTT outbox, and periodic retry after temporary publication failures.
+- A 64-event offline FIFO that keeps only the newest buffered value per input source, a bounded ESP-MQTT outbox, and periodic retry after temporary publication failures.
 - Python 3.10+ middleware using Paho MQTT 2.1.0; no web server or database.
 - An Odoo adapter interface, mock workstation mapping, host firmware tests and a deterministic software demo.
 
@@ -123,7 +123,7 @@ The full Python suite requires the host executable: it passes firmware-produced 
 
 ## Offline behavior and limitations
 
-Local input state processing continues without MQTT. The FIFO preserves original timestamps and sequence IDs, drops new events when full, and retries oldest events first. It is **volatile RAM and does not survive reboot**. Heartbeats are discarded when they cannot be sent rather than filling this queue. A successful publish means the MQTT client accepted the message, not that Odoo applied it. QoS 1 can duplicate messages; mock assignments are idempotent for immediate duplicates, but durable deduplication and conflict resolution are absent.
+Local input state processing continues without MQTT. The FIFO preserves original timestamps and sequence IDs and retries oldest first. Because every payload is absolute state, a newer value from an input source replaces the older buffered value from that source, so replay ends at the station's current value rather than at a stale one; intermediate values from during the outage are not delivered. It is **volatile RAM and does not survive reboot**. Heartbeats are discarded when they cannot be sent rather than filling this queue. A successful publish means the MQTT client accepted the message, not that Odoo applied it. QoS 1 can duplicate messages; mock assignments are idempotent for immediate duplicates, but durable deduplication and conflict resolution are absent.
 
 The broker and backend must be available to receive live events. A backend outage while the broker remains connected is not detected by the station. Commands are not durably stored for offline stations. Network/GPIO values remain placeholders, encoder polling may miss fast transitions, ADC scaling is uncalibrated, and the mock backend loses state on restart. There is no production provisioning, OTA, PKI, custom PCB or production security validation. TLS credential provisioning remains future work. [Known limitations](docs/known-limitations.md) gives the full scope.
 

@@ -1,5 +1,6 @@
 #include <cassert>
 #include <cstdint>
+#include <cstdlib>
 #include <deque>
 #include <iostream>
 #include <string>
@@ -23,6 +24,25 @@ static Event toggle(int value = 1, unsigned sequence = 1) {
     e.value = value; e.sequenceId = sequence; e.timestampMs = 1234;
     return e;
 }
+
+// Event from an arbitrary logical source; the offline store keys coalescing on
+// sourceId, so tests need sources other than the toggle's.
+static Event input(EventType type, unsigned source, int value, unsigned sequence = 0) {
+    Event e;
+    e.type = type; e.sourceId = source;
+    e.value = value; e.sequenceId = sequence; e.timestampMs = 1234;
+    return e;
+}
+
+// cJSON allocation hooks so a serialization failure can be induced deliberately.
+static int failNextAllocations = 0;
+
+static void* testMalloc(std::size_t size) {
+    if (failNextAllocations > 0) { --failNextAllocations; return nullptr; }
+    return std::malloc(size);
+}
+
+static void testFree(void* pointer) { std::free(pointer); }
 
 static void serialization() {
     const auto json = MessageSerializer::serializeEvent(toggle(), "station_01", "0.1.0");
@@ -57,14 +77,108 @@ static void offlineStore() {
     OfflineEventStore store(2);
     Event e;
     assert(store.capacity() == 2 && store.empty() && !store.pop(e));
-    assert(store.push(toggle(1, 5)) && store.push(toggle(0, 6)));
-    assert(store.full() && !store.push(toggle(1, 7)));
+    // Distinct sources stay as separate entries and keep their arrival order.
+    assert(store.push(input(EventType::EncoderChanged, 3, 10, 5)));
+    assert(store.push(input(EventType::AnalogChanged, 4, 20, 6)));
+    // A third source has nothing to replace, so the bound still applies.
+    assert(store.full() && !store.push(input(EventType::ButtonPressed, 1, 1, 7)));
     assert(store.peek(e) && e.sequenceId == 5 && store.size() == 2);
     assert(store.pop(e) && e.sequenceId == 5);
     assert(store.pop(e) && e.sequenceId == 6 && store.empty());
-    store.push(toggle()); store.clear(); assert(store.empty());
+    store.push(toggle()); store.clear();
+    assert(store.empty() && store.coalescedCount() == 0);
     OfflineEventStore rebooted(2); assert(rebooted.empty());
     OfflineEventStore zero(0); assert(!zero.push(toggle()));
+
+    // Absolute state: a newer value replaces the older one from the same source
+    // and moves to the back, so a full store still accepts the current value.
+    OfflineEventStore coalescing(2);
+    assert(coalescing.push(input(EventType::EncoderChanged, 3, 10, 1)));
+    assert(coalescing.push(input(EventType::AnalogChanged, 4, 55, 2)));
+    assert(coalescing.full());
+    assert(coalescing.push(input(EventType::AnalogChanged, 4, 99, 3)));
+    assert(coalescing.size() == 2 && coalescing.coalescedCount() == 1);
+    assert(coalescing.pop(e) && e.sequenceId == 1 && e.sourceId == 3);
+    assert(coalescing.pop(e) && e.sequenceId == 3 && e.value == 99);
+    assert(coalescing.empty());
+
+    // A slider sweep during an outage collapses to its current value instead of
+    // overflowing and leaving only the stale values from the start of the outage.
+    OfflineEventStore sweep(64);
+    for (int percent = 0; percent <= 100; ++percent) {
+        assert(sweep.push(input(EventType::AnalogChanged, 4, percent,
+                                static_cast<unsigned>(percent) + 1)));
+    }
+    assert(sweep.size() == 1 && sweep.coalescedCount() == 100);
+    assert(sweep.peek(e) && e.value == 100 && e.sequenceId == 101);
+
+    // System-source events are discrete occurrences, so they are never coalesced.
+    OfflineEventStore faults(2);
+    assert(faults.push(input(EventType::FaultDetected, 0, 7, 1)));
+    assert(faults.push(input(EventType::FaultDetected, 0, 8, 2)));
+    assert(faults.size() == 2 && faults.coalescedCount() == 0);
+    assert(!faults.push(input(EventType::FaultDetected, 0, 9, 3)));
+}
+
+static void offlineCoalescingThroughApplication() {
+    EventQueue queue(8);
+    StateManager state;
+    LedDriver led(2, true);
+    OutputManager output(led);
+    assert(output.initialize());
+    MqttManager mqtt;
+    OfflineEventStore store(64);
+    Application app(queue, state, output, mqtt, store);
+
+    // A full slider sweep while MQTT is unavailable: 101 events, one source.
+    for (int percent = 0; percent <= 100; ++percent) {
+        app.processEvent(input(EventType::AnalogChanged, 4, percent));
+    }
+    assert(store.size() == 1 && store.coalescedCount() == 100);
+    assert(state.analogValue() == 100);
+
+    // Replay carries the station's current value, not the one it held when the
+    // outage began, and keeps the sequence ID assigned at generation time.
+    mqtt.connected = true;
+    app.flushOfflineEvents();
+    assert(store.empty() && mqtt.payloads.size() == 1);
+    cJSON* root = cJSON_Parse(mqtt.payloads.back().c_str());
+    assert(cJSON_GetObjectItem(root, "value")->valuedouble == 100);
+    assert(cJSON_GetObjectItem(root, "sequence_id")->valuedouble == 101);
+    cJSON_Delete(root);
+}
+
+static void flushSurvivesSerializeFailure() {
+    EventQueue queue(8);
+    StateManager state;
+    LedDriver led(2, true);
+    OutputManager output(led);
+    assert(output.initialize());
+    MqttManager mqtt;
+    OfflineEventStore store(4);
+    Application app(queue, state, output, mqtt, store);
+
+    // Three distinct sources so nothing coalesces away before the flush.
+    assert(store.push(input(EventType::ButtonPressed, 1, 1, 11)));
+    assert(store.push(input(EventType::EncoderChanged, 3, 42, 12)));
+    assert(store.push(input(EventType::AnalogChanged, 4, 60, 13)));
+    mqtt.connected = true;
+
+    // Fail the first cJSON allocation so exactly the head event cannot serialize.
+    cJSON_Hooks hooks;
+    hooks.malloc_fn = testMalloc;
+    hooks.free_fn = testFree;
+    cJSON_InitHooks(&hooks);
+    failNextAllocations = 1;
+    app.flushOfflineEvents();
+    cJSON_InitHooks(nullptr);
+    failNextAllocations = 0;
+
+    // The unserializable head is dropped rather than stalling everything behind it.
+    assert(store.empty() && mqtt.payloads.size() == 2);
+    for (const auto& payload : mqtt.payloads) {
+        assert(payload.find("\"sequence_id\":11") == std::string::npos);
+    }
 }
 
 static void applicationFlow() {
@@ -76,13 +190,14 @@ static void applicationFlow() {
     MqttManager mqtt;
     OfflineEventStore store(3);
     Application app(queue, state, output, mqtt, store);
+    // Distinct sources, so this exercises ordering rather than coalescing.
     app.processEvent(toggle(1));
-    app.processEvent(toggle(0));
-    assert(!state.toggleState() && store.size() == 2);
+    app.processEvent(input(EventType::AnalogChanged, 4, 60));
+    assert(state.toggleState() && store.size() == 2);
     mqtt.connected = true; mqtt.acceptedBeforeFailure = 1;
     app.flushOfflineEvents();
     assert(store.size() == 1 && mqtt.payloads.size() == 1);
-    app.processEvent(toggle(1));
+    app.processEvent(input(EventType::EncoderChanged, 3, 7));
     assert(store.size() == 2); // newer event did not bypass a failed older event
     mqtt.acceptedBeforeFailure = -1;
     idleReceivesRemaining = 1;
@@ -151,6 +266,8 @@ int main(int argc, char** argv) {
         if (!MessageSerializer::parseCommand(argv[2], e)) return 2;
         std::cout << e.value << '\n'; return 0;
     }
-    serialization(); offlineStore(); applicationFlow(); digitalAndEncoder();
-    std::cout << "PASS: serialization, commands, offline FIFO, application recovery/heartbeat, state/output, digital debounce, quadrature\n";
+    serialization(); offlineStore(); offlineCoalescingThroughApplication();
+    flushSurvivesSerializeFailure(); applicationFlow(); digitalAndEncoder();
+    std::cout << "PASS: serialization, commands, offline FIFO coalescing, unserializable-event drain, "
+                 "application recovery/heartbeat, state/output, digital debounce, quadrature\n";
 }

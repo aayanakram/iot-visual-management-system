@@ -6,7 +6,7 @@ Validation date: 2026-09-11. Scope: student software prototype. No ESP32-S3 hard
 
 | Check | Result |
 |---|---|
-| `idf.py build` in activated ESP-IDF 6.1 environment | Passed; `Project build complete` for ESP32-S3 |
+| `idf.py build` in activated ESP-IDF 6.1 environment | Passed for ESP32-S3 as of the previous validation run. **Not re-run after the offline-buffer change**; no ESP-IDF toolchain was available in the environment where that change was made. The changed files compile under the host C++ tests only. |
 | Install `backend/requirements.txt` | Passed; Paho MQTT 2.1.0 installed in a project virtual environment |
 | `python firmware/tests/run_host_tests.py` | Passed; actual firmware logic groups listed below |
 | `python -m unittest discover -s tests -v` | 20 tests passed, no skips |
@@ -20,6 +20,8 @@ The executable verifies:
 
 - Seven-field serialization, timestamps/sequence values, valid output/state commands and malformed/unsupported command rejection.
 - FIFO empty/peek/pop/clear, zero capacity, bounded overflow, preserved order and volatile fresh-store behavior.
+- Newest-per-source coalescing: distinct sources stay separate, a newer value replaces an older one from the same source and moves to the back, a 101-sample slider sweep collapses to one entry carrying the current value, and system-source events are not coalesced.
+- A buffered event whose serialization fails is dropped and the rest of the backlog still drains, verified by installing a failing cJSON allocation hook for exactly one allocation.
 - Local state updates while disconnected, partial publish failure, ordered replay, retry without another reconnect event, and new events staying behind the backlog.
 - Remote command -> Application -> logical state -> output driver, with no command echo upstream.
 - Heartbeat generation with free heap/uptime and discarding unsendable heartbeats.

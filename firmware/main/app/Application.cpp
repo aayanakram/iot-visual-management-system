@@ -194,13 +194,15 @@ void Application::publishOrBuffer(const Event& event)
     {
         ESP_LOGW(
             TAG,
-            "Buffered event sequence %u (%u waiting)",
+            "Buffered event sequence %u (%u waiting, %u superseded)",
             static_cast<unsigned>(event.sequenceId),
-            static_cast<unsigned>(offlineStore_.size())
+            static_cast<unsigned>(offlineStore_.size()),
+            static_cast<unsigned>(offlineStore_.coalescedCount())
         );
     }
     else
     {
+        // Reached only by system-source events, which are never coalesced.
         ESP_LOGE(
             TAG,
             "Offline event buffer full - event sequence %u dropped",
@@ -233,13 +235,22 @@ void Application::flushOfflineEvents()
 
         if (payload.empty())
         {
+            /*
+             * Serialization fails only when cJSON cannot allocate, which is most
+             * likely exactly when a long outage has filled the backlog. Keeping
+             * the event at the head would stall every later event behind it
+             * forever, so drop this one and continue draining.
+             */
+            Event unserializable;
+            offlineStore_.pop(unserializable);
+
             ESP_LOGE(
                 TAG,
-                "Failed to serialize buffered event sequence %u",
+                "Dropping unserializable buffered event sequence %u; backlog continues",
                 static_cast<unsigned>(event.sequenceId)
             );
 
-            return;
+            continue;
         }
 
         if (!mqttManager_.publish(
