@@ -1,6 +1,7 @@
 """Small MQTT callback layer; transport is injected for software tests."""
 
 import logging
+import time
 
 from .protocol import BASE_TOPIC, parse_event
 
@@ -12,9 +13,18 @@ class Middleware:
         self.adapter = adapter
         self.publish = publish
 
-    def handle_message(self, topic, payload):
+    def handle_message(self, topic, payload, received_at_ns=None):
+        """Apply one station event.
+
+        received_at_ns is wall-clock time at broker ingress. The station's own
+        timestamp_ms is monotonic uptime, which orders events within one boot of
+        one device but cannot be compared across devices or turned into a date,
+        so the first wall-clock reading in the system is taken here.
+        """
+        if received_at_ns is None:
+            received_at_ns = time.time_ns()
         event = parse_event(topic, payload)
-        publications = self.adapter.handle_event(event)
+        publications = self.adapter.handle_event(event, received_at_ns)
         for command_topic, command in publications:
             if not self.publish(command_topic, command):
                 raise RuntimeError("MQTT did not accept the generated command")
@@ -38,8 +48,9 @@ def bind_callbacks(client, middleware):
         if message.retain:
             LOG.warning("Ignoring retained event on %s", message.topic)
             return
+        received_at_ns = time.time_ns()
         try:
-            middleware.handle_message(message.topic, message.payload)
+            middleware.handle_message(message.topic, message.payload, received_at_ns)
         except ValueError as exc:
             LOG.warning("Rejected event: %s", exc)
         except Exception:

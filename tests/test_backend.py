@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -103,6 +104,23 @@ class AdapterTests(unittest.TestCase):
         adapter.handle_event(event(device_id="station_02", value=0))
         self.assertTrue(adapter.workstations["station_01"].task_done)
         self.assertFalse(adapter.workstations["station_02"].task_done)
+
+    def test_ingress_wall_clock_recorded(self):
+        adapter = MockOdooAdapter()
+        service = Middleware(adapter, lambda *_: True)
+        before = time.time_ns()
+        service.handle_message(event_topic("station_01"), event().to_json())
+        state = adapter.workstations["station_01"]
+        self.assertGreaterEqual(state.received_at_ns, before)
+        self.assertLessEqual(state.received_at_ns, time.time_ns())
+        # The station reports uptime, so the two clocks must stay separate.
+        self.assertEqual(state.last_device_uptime_ms, 100)
+        # An explicit ingress time is carried through unchanged.
+        service.handle_message(event_topic("station_01"), event().to_json(), 12345)
+        self.assertEqual(adapter.workstations["station_01"].received_at_ns, 12345)
+        # A direct adapter call without an ingress time leaves the field alone.
+        adapter.handle_event(event())
+        self.assertEqual(adapter.workstations["station_01"].received_at_ns, 12345)
 
     def test_publish_failure_visible(self):
         service = Middleware(MockOdooAdapter(), lambda *_: False)

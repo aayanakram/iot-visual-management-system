@@ -8,8 +8,12 @@ from .protocol import StationEvent, device_id, make_command
 
 class OdooAdapter(ABC):
     @abstractmethod
-    def handle_event(self, event: StationEvent) -> list[tuple[str, str]]:
+    def handle_event(self, event: StationEvent,
+                     received_at_ns: int | None = None) -> list[tuple[str, str]]:
         """Apply an event and return (command topic, JSON) publications.
+
+        received_at_ns is wall-clock nanoseconds recorded at broker ingress, or
+        None when a caller has no ingress time to report.
 
         A future real adapter should load ODOO_URL, ODOO_DATABASE, ODOO_USER
         and ODOO_API_KEY from the environment, resolve station/source mappings,
@@ -27,15 +31,20 @@ class Workstation:
     free_heap_bytes: int = 0
     last_device_uptime_ms: int = 0
     fault_code: int = 0
+    # Wall-clock ingress time of the most recent event, in nanoseconds. The
+    # station reports uptime only, so this is the sole date-bearing field.
+    received_at_ns: int = 0
 
 
 class MockOdooAdapter(OdooAdapter):
     def __init__(self):
         self.workstations: dict[str, Workstation] = {}
 
-    def handle_event(self, event):
+    def handle_event(self, event, received_at_ns=None):
         state = self.workstations.setdefault(event.device_id, Workstation())
         state.last_device_uptime_ms = event.timestamp_ms
+        if received_at_ns is not None:
+            state.received_at_ns = received_at_ns
         kind = event.event_type
         # Inputs carry absolute values, so immediate QoS 1 duplicates are idempotent.
         if kind in ("button_pressed", "button_released"):

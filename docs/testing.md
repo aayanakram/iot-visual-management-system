@@ -11,6 +11,7 @@ Validation date: 2026-09-11. Scope: student software prototype. No ESP32-S3 hard
 | `python firmware/tests/run_host_tests.py` | Passed; actual firmware logic groups listed below |
 | `python -m unittest discover -s tests -v` | 20 tests passed, no skips |
 | `python -m backend.demo` | Passed assertions; replayed sequences 1 and 2, mock progress 75, output true from toggle then false from remote state |
+| `python -m bench.run_bench --scenario all` | Completed against a local mosquitto 2.1.2. Idle station-to-command round trip 0.84 ms p50; sustained ceiling about 2 000 events/s; a 11.8 s broker outage recovered in 4.0 s with no events lost. See [performance.md](performance.md) |
 
 ## Firmware tests
 
@@ -43,4 +44,6 @@ ESP-IDF configuration emitted private-include dependency warnings for `wpa_suppl
 
 ## Required future physical/live-system validation
 
-Flashing, GPIO/power inspection, button/toggle/encoder/slider operation, analog accuracy, electrical debounce, output current, hardware timing, stack margins, Wi-Fi RF, actual MQTT recovery, reboot/power-cycle behavior, long-duration operation, multi-station load and live Odoo integration remain untested. The RAM queue intentionally loses events on reset. No measured latency, RF recovery time, physical event-loss rate or production reliability claim is made.
+Flashing, GPIO/power inspection, button/toggle/encoder/slider operation, analog accuracy, electrical debounce, output current, hardware timing, stack margins, Wi-Fi RF, reboot/power-cycle behavior, long-duration operation and live Odoo integration remain untested. The RAM queue intentionally loses events on reset. No RF recovery time, physical event-loss rate or production reliability claim is made.
+
+Broker and middleware latency, throughput and outage recovery **have** now been measured, against a local mosquitto with a simulated Python publisher. Results and their boundaries are in [performance.md](performance.md). Those runs do not involve an ESP32, so they characterize broker plus middleware only and make no claim about device-side or radio timing.

@@ -1,0 +1,273 @@
+[
+  {
+    "scenario": "A",
+    "description": "1 station, 1.0 event/s toggles, 60.0s",
+    "stations": 1,
+    "target_rate_eps": 1.0,
+    "achieved_publish_rate_eps": 0.98,
+    "events_published": 59,
+    "events_received_by_middleware": 59,
+    "commands_published": 59,
+    "commands_received_by_station": 59,
+    "publish_refusals": 0,
+    "ingress_to_command": {
+      "count": 59,
+      "p50_ms": 0.196,
+      "p95_ms": 0.306,
+      "p99_ms": 0.36,
+      "max_ms": 0.36,
+      "mean_ms": 0.203
+    },
+    "station_roundtrip": {
+      "count": 59,
+      "p50_ms": 0.837,
+      "p95_ms": 1.1,
+      "p99_ms": 1.186,
+      "max_ms": 1.186,
+      "mean_ms": 0.871
+    }
+  },
+  {
+    "scenario": "B",
+    "target_rate_eps": 100.0,
+    "achieved_publish_rate_eps": 99.75,
+    "stations": 20,
+    "inputs_per_station": 35,
+    "events_published": 798,
+    "events_received_by_middleware": 798,
+    "delivery_ratio": 1.0,
+    "commands_published": 200,
+    "publish_refusals": 0,
+    "station_buffer_drops": 0,
+    "ingress_to_command": {
+      "count": 200,
+      "p50_ms": 0.136,
+      "p95_ms": 0.307,
+      "p99_ms": 0.373,
+      "max_ms": 0.622,
+      "mean_ms": 0.161
+    },
+    "station_roundtrip": {
+      "count": 200,
+      "p50_ms": 1.022,
+      "p95_ms": 1.348,
+      "p99_ms": 1.524,
+      "max_ms": 1.679,
+      "mean_ms": 1.014
+    }
+  },
+  {
+    "scenario": "B",
+    "target_rate_eps": 250.0,
+    "achieved_publish_rate_eps": 249.5,
+    "stations": 20,
+    "inputs_per_station": 35,
+    "events_published": 1996,
+    "events_received_by_middleware": 1996,
+    "delivery_ratio": 1.0,
+    "commands_published": 500,
+    "publish_refusals": 0,
+    "station_buffer_drops": 0,
+    "ingress_to_command": {
+      "count": 500,
+      "p50_ms": 0.133,
+      "p95_ms": 0.344,
+      "p99_ms": 0.493,
+      "max_ms": 0.594,
+      "mean_ms": 0.165
+    },
+    "station_roundtrip": {
+      "count": 500,
+      "p50_ms": 1.846,
+      "p95_ms": 2.602,
+      "p99_ms": 2.867,
+      "max_ms": 3.77,
+      "mean_ms": 1.892
+    }
+  },
+  {
+    "scenario": "B",
+    "target_rate_eps": 500.0,
+    "achieved_publish_rate_eps": 499.0,
+    "stations": 20,
+    "inputs_per_station": 35,
+    "events_published": 3992,
+    "events_received_by_middleware": 3992,
+    "delivery_ratio": 1.0,
+    "commands_published": 1000,
+    "publish_refusals": 0,
+    "station_buffer_drops": 0,
+    "ingress_to_command": {
+      "count": 1000,
+      "p50_ms": 0.107,
+      "p95_ms": 0.388,
+      "p99_ms": 0.615,
+      "max_ms": 0.918,
+      "mean_ms": 0.151
+    },
+    "station_roundtrip": {
+      "count": 1000,
+      "p50_ms": 2.975,
+      "p95_ms": 3.924,
+      "p99_ms": 4.566,
+      "max_ms": 6.717,
+      "mean_ms": 2.951
+    }
+  },
+  {
+    "scenario": "B",
+    "target_rate_eps": 1000.0,
+    "achieved_publish_rate_eps": 998.0,
+    "stations": 20,
+    "inputs_per_station": 35,
+    "events_published": 7984,
+    "events_received_by_middleware": 7984,
+    "delivery_ratio": 1.0,
+    "commands_published": 2000,
+    "publish_refusals": 0,
+    "station_buffer_drops": 0,
+    "ingress_to_command": {
+      "count": 2000,
+      "p50_ms": 0.099,
+      "p95_ms": 0.393,
+      "p99_ms": 0.69,
+      "max_ms": 1.225,
+      "mean_ms": 0.147
+    },
+    "station_roundtrip": {
+      "count": 2000,
+      "p50_ms": 5.011,
+      "p95_ms": 7.235,
+      "p99_ms": 9.034,
+      "max_ms": 20.583,
+      "mean_ms": 5.071
+    }
+  },
+  {
+    "scenario": "B",
+    "target_rate_eps": 2000.0,
+    "achieved_publish_rate_eps": 1996.0,
+    "stations": 20,
+    "inputs_per_station": 35,
+    "events_published": 15968,
+    "events_received_by_middleware": 15968,
+    "delivery_ratio": 1.0,
+    "commands_published": 4000,
+    "publish_refusals": 0,
+    "station_buffer_drops": 0,
+    "ingress_to_command": {
+      "count": 4000,
+      "p50_ms": 0.093,
+      "p95_ms": 0.395,
+      "p99_ms": 0.67,
+      "max_ms": 1.373,
+      "mean_ms": 0.144
+    },
+    "station_roundtrip": {
+      "count": 4000,
+      "p50_ms": 8.339,
+      "p95_ms": 25.598,
+      "p99_ms": 51.787,
+      "max_ms": 68.131,
+      "mean_ms": 9.87
+    }
+  },
+  {
+    "scenario": "B",
+    "target_rate_eps": 4000.0,
+    "achieved_publish_rate_eps": 3712.12,
+    "stations": 20,
+    "inputs_per_station": 35,
+    "events_published": 29812,
+    "events_received_by_middleware": 15904,
+    "delivery_ratio": 0.5335,
+    "commands_published": 4045,
+    "publish_refusals": 0,
+    "station_buffer_drops": 0,
+    "ingress_to_command": {
+      "count": 4045,
+      "p50_ms": 0.105,
+      "p95_ms": 0.556,
+      "p99_ms": 0.813,
+      "max_ms": 4.087,
+      "mean_ms": 0.184
+    },
+    "station_roundtrip": {
+      "count": 4045,
+      "p50_ms": 5719.862,
+      "p95_ms": 6354.876,
+      "p99_ms": 6425.227,
+      "max_ms": 6440.008,
+      "mean_ms": 4947.529
+    }
+  },
+  {
+    "scenario": "B",
+    "target_rate_eps": 8000.0,
+    "achieved_publish_rate_eps": 3746.7,
+    "stations": 20,
+    "inputs_per_station": 35,
+    "events_published": 38872,
+    "events_received_by_middleware": 17744,
+    "delivery_ratio": 0.4565,
+    "commands_published": 4489,
+    "publish_refusals": 0,
+    "station_buffer_drops": 0,
+    "ingress_to_command": {
+      "count": 4489,
+      "p50_ms": 0.109,
+      "p95_ms": 0.552,
+      "p99_ms": 0.906,
+      "max_ms": 1.851,
+      "mean_ms": 0.194
+    },
+    "station_roundtrip": {
+      "count": 4489,
+      "p50_ms": 7645.906,
+      "p95_ms": 8302.834,
+      "p99_ms": 8357.171,
+      "max_ms": 8373.434,
+      "mean_ms": 6290.394
+    },
+    "note": "harness publisher could not sustain the target rate; this is a harness limit, not a system limit"
+  },
+  {
+    "scenario": "C",
+    "description": "5 station(s), 10.0s broker outage",
+    "stations": 5,
+    "broker_backend": "native",
+    "events_before_outage": 75,
+    "outage_duration_s": 11.78,
+    "broker_accepting_again_after_s": 0.5,
+    "station_reconnect_after_resume_request_ms": [
+      3938.7,
+      3939.1,
+      3940.1,
+      3958.0,
+      3958.1
+    ],
+    "middleware_reconnected": true,
+    "peak_buffered_events_per_station": 50,
+    "events_dropped_by_station_buffer": 0,
+    "recovery_s_reconnect_plus_drain": 3.97,
+    "fully_recovered": true,
+    "events_published_total": 325,
+    "events_received_by_middleware": 325,
+    "ingress_to_command": {
+      "count": 80,
+      "p50_ms": 0.095,
+      "p95_ms": 0.328,
+      "p99_ms": 0.451,
+      "max_ms": 0.451,
+      "mean_ms": 0.139
+    },
+    "station_roundtrip": {
+      "count": 80,
+      "p50_ms": 52.304,
+      "p95_ms": 73.342,
+      "p99_ms": 77.213,
+      "max_ms": 77.213,
+      "mean_ms": 41.321
+    }
+  }
+]

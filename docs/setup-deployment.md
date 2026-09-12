@@ -70,6 +70,17 @@ MQTT_HOST=localhost MQTT_PORT=1883 python -m backend
 
 `.env.example` is a reference only: export variables yourself. There is no dotenv dependency or automatic `.env` loading. The backend retries initial connection and later reconnects; stop with Ctrl+C. No Odoo variables are currently needed because the selected adapter is a mock.
 
+## Benchmark harness
+
+The procedure below was written for manual use and is now automated in `bench/`,
+which starts its own broker, drives simulated stations through it into the real
+middleware, and records latency, throughput and outage recovery. See
+[bench/README.md](../bench/README.md) and [performance.md](performance.md).
+
+```sh
+python -m bench.run_bench --scenario all
+```
+
 ## Optional broker-assisted software check
 
 This procedure was **not** part of recorded validation. Start a local MQTT broker you control and run `python -m backend`. With Mosquitto CLI tools installed, open a subscriber first:

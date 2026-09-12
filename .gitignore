@@ -43,3 +43,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Benchmark scratch (broker config written at run time); results are kept.
+bench/run/
