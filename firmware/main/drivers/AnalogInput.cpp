@@ -59,7 +59,9 @@ bool AnalogInput::initialize()
 
     std::int32_t rawValue = 0;
 
-    // capture an initial value without generating a startup event
+    // Capture a baseline so the deadband has something to compare against.
+    // This does not suppress the startup report: initialEventPending_ stays set,
+    // so the first update() publishes the current percentage.
     if (!readRaw(rawValue))
     {
         adc_oneshot_del_unit(adcHandle_);

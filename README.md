@@ -54,6 +54,8 @@ backend/               MQTT middleware, protocol, mock Odoo and demo
 tests/                 Python tests and Python/C++ contract checks
 docs/                  Architecture, setup, protocol and validation records
 hardware/              Conceptual wiring, component recommendations and pin map
+bench/                 Broker/middleware latency and scale harness; not shipped
+legacy/                Superseded early prototypes; not built, not tested
 ```
 
 ## MQTT contract
